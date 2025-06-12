@@ -25,23 +25,21 @@ const generateSceneKenBurnsConfig = (duration: number): KenBurnsConfig => {
 
 // Fetches a placeholder image URL based on keywords.
 export const fetchPlaceholderFootageUrl = (
-  keywords: string[], 
+  keywords: string[],
   aspectRatio: AspectRatio,
   sceneId?: string // Optional sceneId for more unique placeholders if needed
 ): string => {
   const width = aspectRatio === '16:9' ? 1280 : 720;
   const height = aspectRatio === '16:9' ? 720 : 1280;
-  
-  let seed = FALLBACK_FOOTAGE_KEYWORDS[Math.floor(Math.random() * FALLBACK_FOOTAGE_KEYWORDS.length)];
-  if (keywords && keywords.length > 0) {
-    seed = keywords.join('-').replace(/\s+/g, '-').toLowerCase();
-  }
-  // Adding sceneId to seed for more variety if multiple scenes have same keywords
-  if (sceneId) {
-    seed = `${seed}-${sceneId.substring(0,5)}`;
-  }
-  // Removed ?grayscale from the URL
-  return `https://picsum.photos/seed/${seed}/${width}/${height}?random_bust=${Date.now()}`; 
+
+  const keywordString = (keywords && keywords.length > 0
+    ? keywords.slice(0, 3).join(',')
+    : FALLBACK_FOOTAGE_KEYWORDS[Math.floor(Math.random() * FALLBACK_FOOTAGE_KEYWORDS.length)]
+  ).replace(/\s+/g, ',');
+
+  const cacheBuster = sceneId ? `&sig=${sceneId}` : `&t=${Date.now()}`;
+
+  return `https://source.unsplash.com/${width}x${height}/?${encodeURIComponent(keywordString)}${cacheBuster}`;
 };
 
 export interface ProcessNarrationOptions {

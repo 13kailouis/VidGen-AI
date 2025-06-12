@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GeminiSceneResponseItem } from '../types.ts';
-import { API_KEY, GEMINI_TEXT_MODEL, IMAGEN_MODEL } from '../constants.ts';
+import { API_KEY, GEMINI_TEXT_MODEL, FLUX_MODEL_ID, HUGGINGFACE_API_KEY } from '../constants.ts';
 
 let ai: GoogleGenAI | null = null;
 
@@ -16,8 +16,8 @@ const getAI = () => {
   return ai;
 };
 
-const IMAGEN_QUOTA_EXCEEDED_MESSAGE = "You've exceeded your Imagen API quota for image generation. Please check your Google AI plan and billing details, or try again later. Using placeholder image.";
-const GENERIC_IMAGEN_ERROR_MESSAGE = "Failed to generate AI image due to an unexpected error or invalid prompt. Using placeholder image.";
+const FLUX_QUOTA_EXCEEDED_MESSAGE = "The Flux image API reported a quota or rate limit issue. Using placeholder image.";
+const GENERIC_FLUX_ERROR_MESSAGE = "Failed to generate AI image due to an unexpected error or invalid prompt. Using placeholder image.";
 
 
 export const analyzeNarrationWithGemini = async (narrationText: string): Promise<GeminiSceneResponseItem[]> => {
@@ -134,32 +134,40 @@ export const analyzeNarrationWithGemini = async (narrationText: string): Promise
 };
 
 export const generateImageWithImagen = async (prompt: string, sceneIdForLog: string): Promise<{ base64Image: string; userFriendlyError?: string }> => {
-  const genAI = getAI();
+  if (!HUGGINGFACE_API_KEY) {
+    console.error('HUGGINGFACE_API_KEY is not set in environment variables.');
+    return { base64Image: '', userFriendlyError: 'HuggingFace API key missing. Using placeholder.' };
+  }
   try {
-    const response = await genAI.models.generateImages({
-        model: IMAGEN_MODEL,
-        prompt: prompt,
-        config: { numberOfImages: 1, outputMimeType: 'image/jpeg' }, // jpeg is often smaller
+    const response = await fetch(`https://api-inference.huggingface.co/models/${FLUX_MODEL_ID}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'image/png'
+      },
+      body: JSON.stringify({ inputs: prompt })
     });
 
-    if (response.generatedImages && response.generatedImages.length > 0 && response.generatedImages[0].image?.imageBytes) {
-      const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-      return { base64Image: `data:image/jpeg;base64,${base64ImageBytes}` };
-    } else {
-      console.warn(`Imagen response for scene ${sceneIdForLog} did not contain expected image data. Prompt: "${prompt}"`, response);
-      return { base64Image: '', userFriendlyError: `Imagen returned no image for scene ${sceneIdForLog}. Using placeholder.` };
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Flux API error for scene ${sceneIdForLog}:`, response.status, errorText);
+      throw new Error(errorText);
     }
+
+    const blob = await response.blob();
+    const base64Image = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    return { base64Image };
   } catch (error) {
-    console.error(`Error generating image with Imagen for scene ${sceneIdForLog} (prompt: "${prompt}"):`, error);
-    let userFriendlyError = GENERIC_IMAGEN_ERROR_MESSAGE;
-    if (error instanceof Error) {
-        if (error.message.includes("API key not valid") || error.message.includes("PERMISSION_DENIED")){
-           userFriendlyError = "Invalid API Key for Imagen. Using placeholder.";
-        } else if (error.message.includes("RESOURCE_EXHAUSTED") || error.message.includes("quota") || error.message.includes("429")) {
-            userFriendlyError = IMAGEN_QUOTA_EXCEEDED_MESSAGE;
-        } else if (error.message.includes("prompt") && (error.message.includes("blocked") || error.message.includes("invalid"))) {
-            userFriendlyError = `The image prompt for scene ${sceneIdForLog} ("${prompt.substring(0,50)}...") was considered unsafe or invalid by the AI. Using placeholder.`;
-        }
+    console.error(`Error generating image with Flux for scene ${sceneIdForLog} (prompt: "${prompt}")`, error);
+    let userFriendlyError = GENERIC_FLUX_ERROR_MESSAGE;
+    if (error instanceof Error && error.message.includes('429')) {
+        userFriendlyError = FLUX_QUOTA_EXCEEDED_MESSAGE;
     }
     return { base64Image: '', userFriendlyError };
   }

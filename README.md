@@ -17,3 +17,11 @@ This contains everything you need to run your app locally.
 ### Placeholder images
 
 If AI image generation is disabled or fails, the app fetches placeholder images from the Unsplash Source API based on the keywords extracted from your narration.
+
+### Named figure images
+
+When your narration mentions well-known public figures such as **Elon Musk**,
+**Jeff Bezos**, or **Bernard Arnault**, the app automatically uses public domain
+or Creative Commons images from Wikimedia Commons instead of generic stock
+photos. Ensure their names appear in the extracted keywords to trigger this
+behavior.

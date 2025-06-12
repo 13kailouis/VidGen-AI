@@ -1,6 +1,10 @@
 // Timestamp: 2024-09-12T10:00:00Z - Refresh
 import { Scene, GeminiSceneResponseItem, KenBurnsConfig, AspectRatio } from '../types.ts';
-import { FALLBACK_FOOTAGE_KEYWORDS, AVERAGE_WORDS_PER_SECOND } from '../constants.ts';
+import {
+  FALLBACK_FOOTAGE_KEYWORDS,
+  AVERAGE_WORDS_PER_SECOND,
+  NAMED_FIGURE_IMAGE_URLS,
+} from '../constants.ts';
 import { generateImageWithImagen } from './geminiService.ts';
 
 // Helper to generate Ken Burns configuration for a scene
@@ -31,6 +35,14 @@ export const fetchPlaceholderFootageUrl = (
 ): string => {
   const width = aspectRatio === '16:9' ? 1280 : 720;
   const height = aspectRatio === '16:9' ? 720 : 1280;
+
+  // Check if keywords mention a well-known figure with a predefined image.
+  const lowerKeywords = keywords.map(k => k.toLowerCase());
+  for (const [name, url] of Object.entries(NAMED_FIGURE_IMAGE_URLS)) {
+    if (lowerKeywords.some(k => k.includes(name))) {
+      return url;
+    }
+  }
 
   const keywordString = (keywords && keywords.length > 0
     ? keywords.slice(0, 3).join(',')

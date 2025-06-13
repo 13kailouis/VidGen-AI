@@ -4,6 +4,7 @@ import {
   FALLBACK_FOOTAGE_KEYWORDS,
   AVERAGE_WORDS_PER_SECOND,
   NAMED_FIGURE_IMAGE_URLS,
+  PEXELS_API_KEY,
 } from '../constants.ts';
 import { generateImageWithImagen } from './geminiService.ts';
 
@@ -28,30 +29,59 @@ const generateSceneKenBurnsConfig = (duration: number): KenBurnsConfig => {
 
 
 // Fetches a placeholder image URL based on keywords.
-export const fetchPlaceholderFootageUrl = (
+export const fetchPlaceholderFootageUrl = async (
   keywords: string[],
   aspectRatio: AspectRatio,
-  sceneId?: string // Optional sceneId for more unique placeholders if needed
-): string => {
-  const width = aspectRatio === '16:9' ? 1280 : 720;
-  const height = aspectRatio === '16:9' ? 720 : 1280;
-
+  _sceneId?: string, // Optional sceneId for cache busting
+  mediaType: 'image' | 'video' = 'image'
+): Promise<string> => {
+  const orientation = aspectRatio === '16:9' ? 'landscape' : 'portrait';
+  
   // Check if keywords mention a well-known figure with a predefined image.
-  const lowerKeywords = keywords.map(k => k.toLowerCase());
-  for (const [name, url] of Object.entries(NAMED_FIGURE_IMAGE_URLS)) {
-    if (lowerKeywords.some(k => k.includes(name))) {
-      return url;
+  if (mediaType === 'image') {
+    const lowerKeywords = keywords.map(k => k.toLowerCase());
+    for (const [name, url] of Object.entries(NAMED_FIGURE_IMAGE_URLS)) {
+      if (lowerKeywords.some(k => k.includes(name))) {
+        return url;
+      }
     }
   }
 
   const keywordString = (keywords && keywords.length > 0
-    ? keywords.slice(0, 3).join(',')
+    ? keywords.slice(0, 3).join(' ')
     : FALLBACK_FOOTAGE_KEYWORDS[Math.floor(Math.random() * FALLBACK_FOOTAGE_KEYWORDS.length)]
-  ).replace(/\s+/g, ',');
+  );
 
-  const cacheBuster = sceneId ? `&sig=${sceneId}` : `&t=${Date.now()}`;
+  if (PEXELS_API_KEY) {
+    const endpoint = mediaType === 'image'
+      ? `https://api.pexels.com/v1/search?query=${encodeURIComponent(keywordString)}&orientation=${orientation}&per_page=1`
+      : `https://api.pexels.com/videos/search?query=${encodeURIComponent(keywordString)}&orientation=${orientation}&per_page=1`;
 
-  return `https://source.unsplash.com/${width}x${height}/?${encodeURIComponent(keywordString)}${cacheBuster}`;
+    try {
+      const res = await fetch(endpoint, { headers: { Authorization: PEXELS_API_KEY } });
+      if (res.ok) {
+        const data = await res.json();
+        if (mediaType === 'image' && data.photos && data.photos.length > 0) {
+          const photo = data.photos[0];
+          return photo.src.large2x || photo.src.large || photo.src.medium;
+        } else if (mediaType === 'video' && data.videos && data.videos.length > 0) {
+          const video = data.videos[0];
+          const files = Array.isArray(video.video_files) ? video.video_files : [];
+          if (files.length > 0) {
+            files.sort((a: any, b: any) => b.width - a.width);
+            return files[0].link;
+          }
+        }
+      } else {
+        console.warn(`Pexels API request failed with status ${res.status}`);
+      }
+    } catch (error) {
+      console.warn('Pexels API request error:', error);
+    }
+  }
+
+  // Fallback to a generic placeholder image from Pexels CDN
+  return 'https://images.pexels.com/photos/248616/pexels-photo-248616.jpeg';
 };
 
 export interface ProcessNarrationOptions {
@@ -113,7 +143,7 @@ export const processNarrationToScenes = async (
         imageGenError = imagenResult.userFriendlyError || 'AI image generation failed. Using placeholder.';
         console.warn(imageGenError, "Prompt:", item.imagePrompt);
         onProgress(imageGenError, (index + 1) / scenesToProcess.length, 'ai_image', index + 1, scenesToProcess.length, imageGenError);
-        footageUrl = fetchPlaceholderFootageUrl(item.keywords, aspectRatio, sceneId);
+        footageUrl = await fetchPlaceholderFootageUrl(item.keywords, aspectRatio, sceneId);
       }
     } else {
       onProgress(
@@ -123,7 +153,7 @@ export const processNarrationToScenes = async (
         index + 1,
         scenesToProcess.length
       );
-      footageUrl = fetchPlaceholderFootageUrl(item.keywords, aspectRatio, sceneId);
+      footageUrl = await fetchPlaceholderFootageUrl(item.keywords, aspectRatio, sceneId);
     }
     
     const kenBurnsConfig = generateSceneKenBurnsConfig(validatedDuration);

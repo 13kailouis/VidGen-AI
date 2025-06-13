@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { GeminiSceneResponseItem } from '../types.ts';
-import { API_KEY, GEMINI_TEXT_MODEL, FLUX_MODEL_ID, HUGGINGFACE_API_KEY } from '../constants.ts';
+import { API_KEY, GEMINI_TEXT_MODEL, IMAGEN_MODEL } from '../constants.ts';
 
 let ai: GoogleGenAI | null = null;
 
@@ -16,8 +16,8 @@ const getAI = () => {
   return ai;
 };
 
-const FLUX_QUOTA_EXCEEDED_MESSAGE = "The Flux image API reported a quota or rate limit issue. Using placeholder image.";
-const GENERIC_FLUX_ERROR_MESSAGE = "Failed to generate AI image due to an unexpected error or invalid prompt. Using placeholder image.";
+const IMAGE_QUOTA_EXCEEDED_MESSAGE = "The image generation API reported a quota or rate limit issue. Using placeholder image.";
+const GENERIC_IMAGE_ERROR_MESSAGE = "Failed to generate AI image due to an unexpected error or invalid prompt. Using placeholder image.";
 
 
 export const analyzeNarrationWithGemini = async (narrationText: string): Promise<GeminiSceneResponseItem[]> => {
@@ -86,7 +86,7 @@ export const analyzeNarrationWithGemini = async (narrationText: string): Promise
       }
     });
 
-    let jsonStr = geminiApiResponse.text.trim();
+    let jsonStr = (geminiApiResponse.text || '').trim();
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
@@ -133,41 +133,27 @@ export const analyzeNarrationWithGemini = async (narrationText: string): Promise
   }
 };
 
-export const generateImageWithImagen = async (prompt: string, sceneIdForLog: string): Promise<{ base64Image: string; userFriendlyError?: string }> => {
-  if (!HUGGINGFACE_API_KEY) {
-    console.error('HUGGINGFACE_API_KEY is not set in environment variables.');
-    return { base64Image: '', userFriendlyError: 'HuggingFace API key missing. Using placeholder.' };
-  }
+export const generateImageWithImagen = async (
+  prompt: string,
+  sceneIdForLog: string
+): Promise<{ base64Image: string; userFriendlyError?: string }> => {
   try {
-    const response = await fetch(`https://api-inference.huggingface.co/models/${FLUX_MODEL_ID}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Accept': 'image/png'
-      },
-      body: JSON.stringify({ inputs: prompt })
+    const genAI = getAI();
+    const response = await genAI.models.generateImages({
+      model: IMAGEN_MODEL,
+      prompt,
+      config: { numberOfImages: 1 }
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Flux API error for scene ${sceneIdForLog}:`, response.status, errorText);
-      throw new Error(errorText);
+    const bytes = response?.generatedImages?.[0]?.image?.imageBytes;
+    if (!bytes) {
+      throw new Error('No image data returned');
     }
-
-    const blob = await response.blob();
-    const base64Image = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-    return { base64Image };
+    return { base64Image: `data:image/png;base64,${bytes}` };
   } catch (error) {
-    console.error(`Error generating image with Flux for scene ${sceneIdForLog} (prompt: "${prompt}")`, error);
-    let userFriendlyError = GENERIC_FLUX_ERROR_MESSAGE;
+    console.error(`Error generating image with Gemini for scene ${sceneIdForLog} (prompt: "${prompt}")`, error);
+    let userFriendlyError = GENERIC_IMAGE_ERROR_MESSAGE;
     if (error instanceof Error && error.message.includes('429')) {
-        userFriendlyError = FLUX_QUOTA_EXCEEDED_MESSAGE;
+      userFriendlyError = IMAGE_QUOTA_EXCEEDED_MESSAGE;
     }
     return { base64Image: '', userFriendlyError };
   }

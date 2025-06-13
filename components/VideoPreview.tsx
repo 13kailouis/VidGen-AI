@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Scene, AspectRatio, KenBurnsConfig } from '../types.ts';
+import { Scene, AspectRatio } from '../types.ts';
 import { PlayIcon, PauseIcon, DownloadIcon } from './IconComponents.tsx';
 
 const FADE_DURATION_MS = 1000; // 1 second for cross-fade
@@ -13,6 +13,8 @@ interface ImageSlotState {
   transformOrigin: string;
   transition: string;
 }
+
+const isVideoUrl = (url: string): boolean => /\.mp4$|\.webm$/i.test(url);
 
 interface VideoPreviewProps {
   scenes: Scene[];
@@ -291,17 +293,29 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   return (
     <div className="bg-gray-800 p-1 sm:p-2 rounded-lg shadow-xl">
       <div className={`relative w-full ${footageAspectRatioClass} bg-black overflow-hidden rounded-md`}>
-        {imageSlots.map((slot, index) => (
-          slot.scene ? (
-            <img
-              key={`slot-${index}-${slot.scene.id}`}
-              src={slot.scene.footageUrl}
-              alt={`Footage for: ${slot.scene.keywords.join(', ')}`}
-              style={getImageStyle(slot)}
-              loading={index === activeSlotIndex || index === (1-activeSlotIndex) ? "eager" : "lazy"}
-            />
-          ) : null
-        ))}
+          {imageSlots.map((slot, index) => (
+            slot.scene ? (
+              isVideoUrl(slot.scene.footageUrl) ? (
+                <video
+                  key={`slot-${index}-${slot.scene.id}`}
+                  src={slot.scene.footageUrl}
+                  style={getImageStyle(slot)}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : (
+                <img
+                  key={`slot-${index}-${slot.scene.id}`}
+                  src={slot.scene.footageUrl}
+                  alt={`Footage for: ${slot.scene.keywords.join(', ')}`}
+                  style={getImageStyle(slot)}
+                  loading={index === activeSlotIndex || index === (1-activeSlotIndex) ? "eager" : "lazy"}
+                />
+              )
+            ) : null
+          ))}
         {currentScene && isPlaying && (
             <div className="absolute top-0 left-0 h-1 bg-indigo-600 transition-all duration-100 ease-linear" style={{ width: `${(elapsedTime / ((currentScene?.duration || 1) * 1000)) * 100}%` }}></div>
         )}

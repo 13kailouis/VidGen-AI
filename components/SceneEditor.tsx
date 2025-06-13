@@ -111,16 +111,16 @@ const SceneEditor: React.FC<SceneEditorProps> = ({
                   <strong className="text-gray-400">Text:</strong> {scene.sceneText.length > 100 ? scene.sceneText.substring(0,97) + "..." : scene.sceneText}
                 </p>
                 <p className="text-gray-300 text-sm"><strong className="text-gray-400">Duration:</strong> {scene.duration}s</p>
-                <p className="text-gray-300 text-sm truncate">
-                    <strong className="text-gray-400">Image:</strong> {
-                        scene.footageUrl.startsWith('data:image') ? 
-                        (useAiImagesGlobal ? 'AI Generated' : 'Custom Image Data') : 
-                        'Placeholder'
-                    }
-                    {scene.footageUrl.startsWith('data:image') && scene.imagePrompt && 
-                     <span className="text-xs text-gray-500 italic ml-1">(Prompt: {scene.imagePrompt.substring(0,30)}...)</span>
-                    }
-                </p>
+                 <p className="text-gray-300 text-sm truncate">
+                     <strong className="text-gray-400">Media:</strong> {
+                          scene.footageUrl.startsWith('data:image') ?
+                          (useAiImagesGlobal ? 'AI Generated' : 'Custom Image Data') :
+                          (scene.footageUrl.match(/\.mp4$|\.webm$/i) ? 'Video Placeholder' : 'Placeholder')
+                     }
+                     {scene.footageUrl.startsWith('data:image') && scene.imagePrompt &&
+                      <span className="text-xs text-gray-500 italic ml-1">(Prompt: {scene.imagePrompt.substring(0,30)}...)</span>
+                     }
+                 </p>
                 <div className="flex space-x-2 mt-2 flex-wrap gap-2">
                   <button
                     onClick={() => handleEdit(scene)}

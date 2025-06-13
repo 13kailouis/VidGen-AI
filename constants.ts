@@ -8,7 +8,7 @@ export const FALLBACK_FOOTAGE_KEYWORDS = [
 ];
 
 // Public domain or Creative Commons images for well-known figures.
-// These images are fetched instead of Unsplash placeholders when a scene's
+// These images are fetched instead of generic placeholders when a scene's
 // keywords include the corresponding name.
 export const NAMED_FIGURE_IMAGE_URLS: Record<string, string> = {
   "elon musk":
@@ -22,11 +22,10 @@ export const NAMED_FIGURE_IMAGE_URLS: Record<string, string> = {
 // Gemini model for text analysis
 export const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-04-17';
 // Imagen model for image generation
-export const IMAGEN_MODEL = 'imagen-3.0-generate-002'; // Deprecated, now using FLUX
-export const FLUX_MODEL_ID = 'black-forest-labs/FLUX.1-schnell';
+export const IMAGEN_MODEL = 'imagen-3.0-generate-002';
 
-// Hugging Face API key for FLUX model
-export const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
+// API key for the Pexels service (images and videos)
+export const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
 
 
 // Placeholder for API Key - this should be set in the environment
